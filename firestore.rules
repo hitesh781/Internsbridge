@@ -1,0 +1,88 @@
+rules_version = '2';
+
+// Deploy: from this folder run `firebase deploy --only firestore:rules`
+// (requires Firebase CLI and `firebase login` with this project selected.)
+//
+// Legacy accounts without a `users/{uid}` document cannot post internships or
+// use student-only writes until you add that document in the console with
+// field role: "company" or "student".
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userRole() {
+      return userDoc().exists ? userDoc().data.role : null;
+    }
+
+    function isCompany() {
+      return signedIn() && userRole() == 'company';
+    }
+
+    function isStudent() {
+      return signedIn() && userRole() == 'student';
+    }
+
+    // Profile: email, name, role, createdAt
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId)
+        && request.resource.data.role in ['student', 'company'];
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
+    }
+
+    // Company branding (Profile page)
+    match /companies/{companyId} {
+      allow read: if true;
+      allow create, update, delete: if isOwner(companyId) && isCompany();
+    }
+
+    // Public internship feed; only owning company can write
+    match /internships/{internshipId} {
+      allow read: if true;
+      allow create: if isCompany()
+        && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if signedIn()
+        && resource.data.userId == request.auth.uid;
+    }
+
+    // Student bookmarks
+    match /savedInternships/{docId} {
+      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isStudent()
+        && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if signedIn()
+        && resource.data.userId == request.auth.uid;
+    }
+
+    // Student applications
+    match /applications/{docId} {
+      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isStudent()
+        && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if signedIn()
+        && resource.data.userId == request.auth.uid;
+    }
+
+    // Student resume (one doc per user id)
+    match /resumes/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
