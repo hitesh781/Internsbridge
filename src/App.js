@@ -1,145 +1,228 @@
-import { BrowserRouter, Routes, Route, Link, Navigate } from "react-router-dom";
-import { auth, db } from "./firebase";
-import { onAuthStateChanged, signOut } from "firebase/auth";
-import { useEffect, useState } from "react";
-import { doc, getDoc } from "firebase/firestore";
-import Home from "./Home";
-import Admin from "./Admin";
-import Login from "./Login";
-import Signup from "./Signup";
-import CompanyPage from "./CompanyPage";
-import Profile from "./Profile";
-import Internships from "./Internships";
-import StudentDashboard from "./StudentDashboard";
-import ResumeBuilder from "./ResumeBuilder";
+import React, { useState } from "react";
 import "./App.css";
 
-function ProtectedRoute({ user, children }) {
-  if (!user) return <Navigate to="/login" replace />;
-  return children;
-}
+const internships = [
+  {
+    company: "StartupX",
+    location: "USA",
+    role: "Frontend Intern",
+    stipend: "$100/month",
+    tags: ["React", "CSS", "JavaScript"],
+    type: "Remote",
+    link: "https://forms.gle/example1",
+  },
+  {
+    company: "TechNova",
+    location: "Germany",
+    role: "Backend Intern",
+    stipend: "$150/month",
+    tags: ["Node.js", "MongoDB", "REST API"],
+    type: "Hybrid",
+    link: "https://forms.gle/example2",
+  },
+  {
+    company: "AI Labs",
+    location: "UK",
+    role: "AI/ML Intern",
+    stipend: "$200/month",
+    tags: ["Python", "TensorFlow", "Data Science"],
+    type: "On-site",
+    link: "https://forms.gle/example3",
+  },
+  {
+    company: "CloudBase",
+    location: "Canada",
+    role: "DevOps Intern",
+    stipend: "$180/month",
+    tags: ["AWS", "Docker", "Kubernetes"],
+    type: "Remote",
+    link: "https://forms.gle/example4",
+  },
+  {
+    company: "DesignHub",
+    location: "Australia",
+    role: "UI/UX Intern",
+    stipend: "$120/month",
+    tags: ["Figma", "Prototyping", "User Research"],
+    type: "Remote",
+    link: "https://forms.gle/example5",
+  },
+  {
+    company: "DataStream",
+    location: "Singapore",
+    role: "Data Analyst Intern",
+    stipend: "$160/month",
+    tags: ["SQL", "Python", "Tableau"],
+    type: "Hybrid",
+    link: "https://forms.gle/example6",
+  },
+];
 
-function RoleRoute({ user, role, userRole, children }) {
-  if (!user) return <Navigate to="/login" replace />;
-  if (userRole !== role) {
-    return (
-      <div className="auth card-box">
-        <h2>Access denied</h2>
-        <p>This page is available only for {role} accounts.</p>
-      </div>
-    );
-  }
-  return children;
-}
+const filterOptions = ["All", "Remote", "Hybrid", "On-site"];
 
 function App() {
-  const [user, setUser] = useState(null);
-  const [userRole, setUserRole] = useState("");
+  const [filter, setFilter] = useState("All");
+  const [search, setSearch] = useState("");
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    const fetchUserRole = async () => {
-      if (!user) {
-        setUserRole("");
-        return;
-      }
-      const userRef = doc(db, "users", user.uid);
-      const userSnap = await getDoc(userRef);
-      if (userSnap.exists()) {
-        setUserRole(userSnap.data().role || "student");
-      } else {
-        // Fallback for old accounts created before role support.
-        setUserRole("company");
-      }
-    };
-    fetchUserRole();
-  }, [user]);
-
-  const handleLogout = async () => {
-    await signOut(auth);
-  };
+  const filtered = internships.filter((job) => {
+    const matchType = filter === "All" || job.type === filter;
+    const matchSearch =
+      job.role.toLowerCase().includes(search.toLowerCase()) ||
+      job.company.toLowerCase().includes(search.toLowerCase()) ||
+      job.tags.some((t) => t.toLowerCase().includes(search.toLowerCase()));
+    return matchType && matchSearch;
+  });
 
   return (
-    <BrowserRouter>
+    <div className="app">
+      {/* Navbar */}
       <nav className="navbar">
-        <div className="nav-left brand-wrap">
-          <Link to="/" className="logo">
-            InternsBridge
-          </Link>
-          <div className="nav-menu">
-            <Link to="/">Home</Link>
-            <Link to="/internships">Internships</Link>
-            <Link to="/resume">Resume</Link>
-            {user && <Link to="/dashboard">Dashboard</Link>}
-            {user && <Link to="/profile">Profile</Link>}
-          </div>
+        <div className="nav-logo">
+          <span className="logo-icon">🌍</span>
+          <span className="logo-text">InternsBridge</span>
         </div>
-        <div className="nav-right">
-          {!user ? (
-            <>
-              <Link to="/login" className="login-btn">
-                Login
-              </Link>
-              <Link to="/signup" className="register-btn">
-                Register
-              </Link>
-            </>
-          ) : (
-            <button className="logout-btn" onClick={handleLogout}>
-              Logout
-            </button>
-          )}
+        <div className="nav-links">
+          <a href="#internships">Browse</a>
+          <a
+            href="https://forms.gle/postinternship"
+            target="_blank"
+            rel="noreferrer"
+            className="nav-cta"
+          >
+            Post Internship
+          </a>
         </div>
       </nav>
 
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/resume" element={<ResumeBuilder />} />
-        <Route path="/internships" element={<Internships />} />
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute user={user}>
-              {userRole === "company" ? <Navigate to="/admin" replace /> : <Navigate to="/student" replace />}
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admin"
-          element={
-            <RoleRoute user={user} userRole={userRole} role="company">
-              <Admin />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="/student"
-          element={
-            <RoleRoute user={user} userRole={userRole} role="student">
-              <StudentDashboard />
-            </RoleRoute>
-          }
-        />
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
-        <Route path="/company/:name" element={<CompanyPage />} />
-        <Route
-          path="/profile"
-          element={
-            <ProtectedRoute user={user}>
-              <Profile />
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
-    </BrowserRouter>
+      {/* Hero */}
+      <header className="hero">
+        <div className="hero-badge">🚀 100+ Opportunities Worldwide</div>
+        <h1 className="hero-title">
+          Launch Your Career
+          <br />
+          <span className="hero-accent">Globally.</span>
+        </h1>
+        <p className="hero-sub">
+          Connecting ambitious students with world-class internship opportunities
+          across every timezone.
+        </p>
+        <div className="hero-actions">
+          <a href="#internships" className="btn-primary">
+            Browse Internships
+          </a>
+          <a
+            href="https://forms.gle/postinternship"
+            target="_blank"
+            rel="noreferrer"
+            className="btn-secondary"
+          >
+            Post a Role
+          </a>
+        </div>
+
+        {/* Stats */}
+        <div className="stats">
+          <div className="stat">
+            <span className="stat-num">50+</span>
+            <span className="stat-label">Companies</span>
+          </div>
+          <div className="stat-divider" />
+          <div className="stat">
+            <span className="stat-num">30+</span>
+            <span className="stat-label">Countries</span>
+          </div>
+          <div className="stat-divider" />
+          <div className="stat">
+            <span className="stat-num">100%</span>
+            <span className="stat-label">Free to Apply</span>
+          </div>
+        </div>
+      </header>
+
+      {/* Listings */}
+      <main className="listings" id="internships">
+        <div className="listings-header">
+          <h2>Available Internships</h2>
+          <p>{filtered.length} opportunities found</p>
+        </div>
+
+        {/* Search + Filter */}
+        <div className="controls">
+          <div className="search-wrap">
+            <span className="search-icon">🔍</span>
+            <input
+              type="text"
+              placeholder="Search by role, company, or skill..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="search-input"
+            />
+          </div>
+          <div className="filters">
+            {filterOptions.map((opt) => (
+              <button
+                key={opt}
+                className={`filter-btn ${filter === opt ? "active" : ""}`}
+                onClick={() => setFilter(opt)}
+              >
+                {opt}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Cards Grid */}
+        <div className="grid">
+          {filtered.length > 0 ? (
+            filtered.map((job, index) => (
+              <div className="card" key={index}>
+                <div className="card-top">
+                  <div className="company-avatar">
+                    {job.company.charAt(0)}
+                  </div>
+                  <span className={`type-badge type-${job.type.toLowerCase().replace("/", "")}`}>
+                    {job.type}
+                  </span>
+                </div>
+                <h3 className="card-role">{job.role}</h3>
+                <p className="card-company">
+                  {job.company} &nbsp;·&nbsp;
+                  <span className="card-location">📍 {job.location}</span>
+                </p>
+                <div className="card-tags">
+                  {job.tags.map((tag) => (
+                    <span className="tag" key={tag}>
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+                <div className="card-footer">
+                  <span className="stipend">💰 {job.stipend}</span>
+                  <a
+                    href={job.link}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="apply-btn"
+                  >
+                    Apply Now →
+                  </a>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="no-results">
+              <span>😕</span>
+              <p>No internships found. Try a different search or filter.</p>
+            </div>
+          )}
+        </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="footer">
+        <p>© 2025 InternsBridge · Built for students, by students 🌍</p>
+      </footer>
+    </div>
   );
 }
 
